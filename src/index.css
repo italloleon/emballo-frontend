@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ember: #F4632A;
+  --color-ember-hover: #F78050;
+  --color-gold: #F5A623;
+  --color-bg-900: #111010;
+  --color-bg-800: #1C1A1A;
+  --color-bg-700: #2A2726;
+  --color-bg-600: #3A3735;
+  --color-txt: #F5F3F0;
+  --color-txt-dim: #9B9490;
+  --color-txt-faint: #4A4744;
+  --color-success: #22C55E;
+  --color-danger: #EF4444;
+  --color-info: #3B82F6;
+
+  --font-family-heading: 'Barlow Condensed', sans-serif;
+  --font-family-body: 'Inter', sans-serif;
+  --font-family-mono: 'DM Mono', monospace;
+}
+
+body {
+  background-color: var(--color-bg-900);
+  color: var(--color-txt);
+  font-family: var(--font-family-body);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+@keyframes like-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.like-pop { animation: like-pop 0.25s ease-out; }
+
+@keyframes cheer-burst {
+  0%   { transform: scale(1) rotate(0deg); }
+  30%  { transform: scale(1.4) rotate(-10deg); }
+  60%  { transform: scale(1.2) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.cheer-burst { animation: cheer-burst 0.4s ease-out; }
+
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.slide-up { animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
