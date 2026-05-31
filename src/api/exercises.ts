@@ -40,9 +40,17 @@ export interface TrainingPlan {
   students_count?: number
 }
 
+export type TrainingGoal =
+  | 'strength'
+  | 'hypertrophy'
+  | 'endurance'
+  | 'weight_loss'
+  | 'flexibility'
+  | 'general'
+
 export interface GenerateTrainingPlanPayload {
   student_id?: string
-  goal: string
+  goal: TrainingGoal
   context?: string
   exercise_count?: number
   provider_id?: string

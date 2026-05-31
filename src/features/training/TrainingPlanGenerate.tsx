@@ -26,18 +26,22 @@ import {
   deleteTrainingPlan,
   updateTrainingPlanExercise,
   deleteTrainingPlanExercise,
+  type TrainingGoal,
   type TrainingPlan,
   type TrainingExercise,
 } from '@/api/exercises'
+import { GOAL_LABELS } from '@/lib/calendar'
 
-const GOAL_CHIPS = [
-  'Hipertrofia',
-  'Força',
-  'Emagrecimento',
-  'Resistência',
-  'Flexibilidade',
-  'Geral',
-] as const
+const TRAINING_GOAL_OPTIONS = (
+  [
+    'hypertrophy',
+    'strength',
+    'weight_loss',
+    'endurance',
+    'flexibility',
+    'general',
+  ] as const satisfies readonly TrainingGoal[]
+).map(value => ({ value, label: GOAL_LABELS[value] }))
 
 interface Student {
   id: string
@@ -56,8 +60,15 @@ interface TrainingPlanGenerateProps {
 
 function getApiError(err: unknown, fallback: string): string {
   if (isAxiosError(err)) {
-    const msg = err.response?.data?.message
-    if (typeof msg === 'string') return msg
+    const data = err.response?.data as
+      | { message?: string; errors?: Record<string, string[]> }
+      | undefined
+    const fieldErrors = data?.errors
+    if (fieldErrors) {
+      const first = Object.values(fieldErrors).flat()[0]
+      if (first) return first
+    }
+    if (typeof data?.message === 'string') return data.message
     if (err.response?.status === 429) {
       return 'Limite de gerações atingido. Tente novamente em alguns minutos.'
     }
@@ -88,7 +99,7 @@ export default function TrainingPlanGenerate({ backPath, listPath }: TrainingPla
   const [studentSearch, setStudentSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedInstructor, setSelectedInstructor] = useState<string>('')
-  const [goal, setGoal] = useState('')
+  const [goal, setGoal] = useState<TrainingGoal | ''>('')
   const [context, setContext] = useState('')
   const [exerciseCount, setExerciseCount] = useState(6)
   const [providerId, setProviderId] = useState('')
@@ -146,7 +157,7 @@ export default function TrainingPlanGenerate({ backPath, listPath }: TrainingPla
   })
 
   async function handleGenerate() {
-    if (!selectedStudent || !goal.trim()) return
+    if (!selectedStudent || !goal) return
     if (isAdmin && !selectedInstructor) {
       toast.error('Selecione um instrutor.')
       return
@@ -156,7 +167,7 @@ export default function TrainingPlanGenerate({ backPath, listPath }: TrainingPla
     try {
       const payload = {
         student_id: selectedStudent.id,
-        goal: goal.trim(),
+        goal,
         context: context.trim() || undefined,
         exercise_count: exerciseCount,
         provider_id: providerId || undefined,
@@ -375,26 +386,23 @@ export default function TrainingPlanGenerate({ backPath, listPath }: TrainingPla
             <h2 className="text-sm font-semibold text-txt-dim uppercase tracking-wider mb-4">
               Objetivo do Treino
             </h2>
-            <Input
-              label="Meta / Objetivo"
-              placeholder="Hipertrofia muscular, foco em membros superiores"
-              value={goal}
-              onChange={e => setGoal(e.target.value.slice(0, 200))}
-              maxLength={200}
-            />
-            <div className="flex flex-wrap gap-2 mt-3">
-              {GOAL_CHIPS.map(chip => (
+            <p className="text-sm text-txt-dim mb-3">
+              Selecione o objetivo principal. Detalhes como foco muscular ou restrições vão no
+              contexto abaixo.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {TRAINING_GOAL_OPTIONS.map(option => (
                 <button
-                  key={chip}
+                  key={option.value}
                   type="button"
-                  onClick={() => setGoal(chip)}
+                  onClick={() => setGoal(option.value)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    goal === chip
+                    goal === option.value
                       ? 'bg-ember/15 text-ember border-ember/30'
                       : 'bg-bg-700 text-txt-dim border-bg-600 hover:border-ember/30'
                   }`}
                 >
-                  {chip}
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -488,7 +496,7 @@ export default function TrainingPlanGenerate({ backPath, listPath }: TrainingPla
             <Button
               className="flex-1"
               loading={generating}
-              disabled={!goal.trim() || (isAdmin && (providers.length === 0 || !selectedInstructor))}
+              disabled={!goal || (isAdmin && (providers.length === 0 || !selectedInstructor))}
               onClick={handleGenerate}
             >
               <Bot size={16} />
