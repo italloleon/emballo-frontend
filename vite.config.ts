@@ -27,12 +27,10 @@ export default defineConfig({
           {
             urlPattern: /\/api\/v1\/leagues\/.*\/ranking/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'league-ranking', expiration: { maxAgeSeconds: 300 } },
-          },
-          {
-            urlPattern: /\/api\/v1\/me\/training-plans/,
-            handler: 'CacheFirst',
-            options: { cacheName: 'training-plan' },
+            options: {
+              cacheName: 'league-ranking',
+              expiration: { maxAgeSeconds: 300 },
+            },
           },
         ],
       },

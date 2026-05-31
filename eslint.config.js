@@ -18,5 +18,15 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Existing pages use fetch-on-mount via useEffect; migrate to TanStack Query over time
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: ['src/router.tsx', 'src/providers/AppQueryProvider.tsx', 'src/lib/queryClient.ts'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])
