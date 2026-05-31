@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
+import type { Html5Qrcode } from 'html5-qrcode'
 
 interface QrScannerProps {
   onScan: (decodedText: string) => void
@@ -54,8 +54,10 @@ export function QrScanner({ onScan, onError, paused = false }: QrScannerProps) {
   const onScanRef = useRef(onScan)
   const onErrorRef = useRef(onError)
 
-  onScanRef.current = onScan
-  onErrorRef.current = onError
+  useEffect(() => {
+    onScanRef.current = onScan
+    onErrorRef.current = onError
+  }, [onScan, onError])
 
   useEffect(() => {
     if (paused) {
@@ -66,7 +68,7 @@ export function QrScanner({ onScan, onError, paused = false }: QrScannerProps) {
     }
 
     let cancelled = false
-    const scanner = new Html5Qrcode(elementId)
+    let scanner: Html5Qrcode | null = null
     streamRef.current = null
 
     const streamPoll = globalThis.setInterval(() => {
@@ -93,41 +95,49 @@ export function QrScanner({ onScan, onError, paused = false }: QrScannerProps) {
       streamRef.current = null
     }
 
-    const startPromise = scanner
-      .start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 },
-        decodedText => {
-          if (cancelled) return
-          if (decodedText === lastScanRef.current) return
-          lastScanRef.current = decodedText
-          onScanRef.current(decodedText)
-        },
-        () => {}
-      )
-      .then(() => {
-        const stream = captureStream(elementId)
-        if (stream) streamRef.current = stream
+    let startPromise: Promise<void> = Promise.resolve()
 
-        if (cancelled) {
-          shutdown()
-          return releaseScanner(scanner)
-        }
-        setReady(true)
-      })
-      .catch(err => {
-        if (!cancelled) {
-          const message =
-            err instanceof Error ? err.message : 'Não foi possível acessar a câmera.'
-          onErrorRef.current?.(message)
-        }
-      })
+    void import('html5-qrcode').then(({ Html5Qrcode: Scanner }) => {
+      if (cancelled) return
+      scanner = new Scanner(elementId)
+      startPromise = scanner
+        .start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 },
+          decodedText => {
+            if (cancelled) return
+            if (decodedText === lastScanRef.current) return
+            lastScanRef.current = decodedText
+            onScanRef.current(decodedText)
+          },
+          () => {}
+        )
+        .then(() => {
+          const stream = captureStream(elementId)
+          if (stream) streamRef.current = stream
+
+          if (cancelled && scanner) {
+            shutdown()
+            return releaseScanner(scanner)
+          }
+          setReady(true)
+        })
+        .catch(err => {
+          if (!cancelled) {
+            const message =
+              err instanceof Error ? err.message : 'Não foi possível acessar a câmera.'
+            onErrorRef.current?.(message)
+          }
+        })
+    })
 
     return () => {
       cancelled = true
       setReady(false)
       shutdown()
-      void startPromise.finally(() => releaseScanner(scanner))
+      void startPromise.finally(() => {
+        if (scanner) void releaseScanner(scanner)
+      })
     }
   }, [elementId, paused])
 
@@ -141,12 +151,4 @@ export function QrScanner({ onScan, onError, paused = false }: QrScannerProps) {
       )}
     </div>
   )
-}
-
-export function stopAllCameraStreams() {
-  document.querySelectorAll('video').forEach(video => {
-    patchVideoPlay(video)
-    video.srcObject?.getTracks().forEach(track => track.stop())
-    video.srcObject = null
-  })
 }
