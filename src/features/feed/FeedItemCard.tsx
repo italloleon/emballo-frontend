@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Heart, MoreHorizontal, Pin, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { useAuthStore } from '@/store/auth'
 import { type FeedEntry, type EventType, deletePost, pinPost, toggleLike, getLikers } from '@/api/feed'
 import { getInitials } from '@/lib/utils'
+import { parseLikedByMe, parseLikesCount } from '@/lib/feedSocial'
+import { env } from '@/lib/env'
+import { CheerButton } from './CheerButton'
 
 function formatRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -61,35 +64,40 @@ function LikeBar({
   initialLikesCount: number
   onLikeToggle: (id: string, likes_count: number, liked_by_me: boolean) => void
 }) {
-  const [likedByMe, setLikedByMe] = useState(initialLikedByMe)
-  const [likesCount, setLikesCount] = useState(initialLikesCount)
+  const [likedByMe, setLikedByMe] = useState(() => parseLikedByMe(initialLikedByMe))
+  const [likesCount, setLikesCount] = useState(() => parseLikesCount(initialLikesCount))
   const [animationKey, setAnimationKey] = useState(0)
 
   // Likers modal state
   const [likersOpen, setLikersOpen] = useState(false)
   const [likers, setLikers] = useState<{ user_id: string; name: string }[]>([])
   const [likersLoading, setLikersLoading] = useState(false)
+  const inFlightRef = useRef(false)
 
   async function handleHeartClick() {
-    // Optimistic update
-    const nextLiked = !likedByMe
-    const nextCount = nextLiked ? likesCount + 1 : Math.max(0, likesCount - 1)
+    if (inFlightRef.current) return
+    inFlightRef.current = true
+
+    const prevLiked = likedByMe
+    const prevCount = parseLikesCount(likesCount)
+    const nextLiked = !prevLiked
+    const nextCount = nextLiked ? prevCount + 1 : Math.max(0, prevCount - 1)
+
     setLikedByMe(nextLiked)
     setLikesCount(nextCount)
     setAnimationKey(k => k + 1)
-    onLikeToggle(entryId, nextCount, nextLiked)
 
     try {
-      const res = await toggleLike(entryId)
-      const { likes_count: serverCount, liked: serverLiked } = res.data
-      setLikesCount(serverCount)
-      setLikedByMe(serverLiked)
-      onLikeToggle(entryId, serverCount, serverLiked)
+      const result = await toggleLike(entryId)
+      setLikesCount(result.likes_count)
+      setLikedByMe(result.liked)
+      onLikeToggle(entryId, result.likes_count, result.liked)
     } catch {
-      // Revert on error
-      setLikedByMe(likedByMe)
-      setLikesCount(likesCount)
-      onLikeToggle(entryId, likesCount, likedByMe)
+      setLikedByMe(prevLiked)
+      setLikesCount(prevCount)
+      onLikeToggle(entryId, prevCount, prevLiked)
+    } finally {
+      inFlightRef.current = false
     }
   }
 
@@ -97,8 +105,8 @@ function LikeBar({
     setLikersOpen(true)
     setLikersLoading(true)
     try {
-      const res = await getLikers(entryId)
-      setLikers(res.data.data)
+      const { data } = await getLikers(entryId)
+      setLikers(data)
     } catch {
       setLikers([])
     } finally {
@@ -106,7 +114,10 @@ function LikeBar({
     }
   }
 
-  const showCount = likesCount > 0 || likedByMe
+  const displayCount = parseLikesCount(likesCount)
+  const showCount = displayCount > 0 || likedByMe
+
+  if (!env.enableSocial) return null
 
   return (
     <>
@@ -128,7 +139,7 @@ function LikeBar({
             onClick={handleCountClick}
             className="text-xs text-txt-faint hover:text-txt transition-colors leading-none"
           >
-            {likesCount}
+            {displayCount}
           </button>
         )}
       </div>
@@ -171,10 +182,20 @@ export function FeedItemCard({ entry, onDelete, onPin, onLikeToggle }: FeedItemC
             <p className="text-xs text-txt-faint mt-1">{formatRelative(entry.created_at)}</p>
           </div>
         </div>
+        {entry.type === 'check_in' &&
+          env.enableSocial &&
+          typeof entry.payload.user_id === 'string' && (
+            <div className="px-4 pb-2">
+              <CheerButton
+                targetUserId={entry.payload.user_id}
+                targetUserName={String(entry.payload.name ?? '')}
+              />
+            </div>
+          )}
         <LikeBar
           entryId={entry.id}
-          initialLikedByMe={entry.liked_by_me}
-          initialLikesCount={entry.likes_count}
+          initialLikedByMe={parseLikedByMe(entry.liked_by_me)}
+          initialLikesCount={parseLikesCount(entry.likes_count)}
           onLikeToggle={onLikeToggle}
         />
       </div>
@@ -257,8 +278,8 @@ export function FeedItemCard({ entry, onDelete, onPin, onLikeToggle }: FeedItemC
 
       <LikeBar
         entryId={entry.id}
-        initialLikedByMe={entry.liked_by_me}
-        initialLikesCount={entry.likes_count}
+        initialLikedByMe={parseLikedByMe(entry.liked_by_me)}
+        initialLikesCount={parseLikesCount(entry.likes_count)}
         onLikeToggle={onLikeToggle}
       />
     </Card>

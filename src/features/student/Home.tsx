@@ -1,21 +1,12 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Flame, QrCode, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/auth'
-import { getActiveRanking } from '@/api/leagues'
-import { getMe } from '@/api/users'
-import { getMyTrainingPlans } from '@/api/exercises'
-import { getStreakDays, unwrapList } from '@/lib/utils'
-import { parseMeDashboard, type MeDashboard } from '@/lib/meDashboard'
-
-interface RankEntry {
-  rank: number
-  student_id: string
-  name: string
-  total_points: number
-}
+import { getStreakDays } from '@/lib/utils'
+import { useActiveRanking } from '@/hooks/queries/useActiveRanking'
+import { useMeDashboard } from '@/hooks/queries/useMeDashboard'
+import { useMyTrainingPlans } from '@/hooks/queries/useMyTrainingPlans'
 
 function SkeletonBlock({ h = 'h-16' }: { h?: string }) {
   return <div className={`${h} bg-bg-700 rounded-xl animate-pulse`} />
@@ -24,45 +15,29 @@ function SkeletonBlock({ h = 'h-16' }: { h?: string }) {
 export default function StudentHome() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
-  const [ranking, setRanking] = useState<RankEntry[]>([])
-  const [me, setMe] = useState<MeDashboard | null>(null)
-  const [trainingPlanName, setTrainingPlanName] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    data: ranking = [],
+    isLoading: rankingLoading,
+    isError: rankingError,
+  } = useActiveRanking()
+  const { data: me, isLoading: meLoading, isError: meError } = useMeDashboard()
+  const { data: plans = [], isLoading: plansLoading } = useMyTrainingPlans()
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [rankRes, meRes, plansRes] = await Promise.all([
-          getActiveRanking(),
-          getMe(),
-          getMyTrainingPlans(),
-        ])
-        const rankData = rankRes.data
-        const meData = parseMeDashboard(meRes.data)
-        const rankList = Array.isArray(rankData) ? rankData : (rankData?.data ?? [])
-        const activePlans = unwrapList<{ name: string }>(plansRes.data)
-        setRanking(rankList.slice(0, 5))
-        setMe(meData)
-        setTrainingPlanName(activePlans[0]?.name ?? null)
-      } catch {
-        setError('Não foi possível carregar os dados.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
-  }, [])
+  const loading = rankingLoading || meLoading || plansLoading
+  const error = rankingError || meError
+  const topFive = ranking.slice(0, 5)
+  const trainingPlanName = plans[0]?.name ?? null
 
   const firstName = (user?.name ?? '').split(' ')[0]
-  const maxPoints = ranking[0]?.total_points ?? 1
+  const maxPoints = topFive[0]?.total_points ?? 1
   const streakDays = getStreakDays(me?.streak)
+  const studentId = me?.studentId ?? ''
 
   return (
     <div className="space-y-4 max-w-sm mx-auto pb-4">
       {error && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-sm text-danger">
-          {error}
+          Não foi possível carregar os dados.
         </div>
       )}
       {/* Header */}
@@ -81,8 +56,7 @@ export default function StudentHome() {
               {me?.leagueName ?? 'Liga'} · Posição #{me?.leagueRank ?? '—'}
             </p>
           </div>
-          {/* Streak badge */}
-          {(streakDays > 0) && (
+          {streakDays > 0 && (
             <div className="flex items-center gap-1.5 bg-ember text-white rounded-full px-3 py-1.5">
               <Flame size={14} />
               <span
@@ -149,8 +123,8 @@ export default function StudentHome() {
                   <div className="h-2.5 bg-bg-700 rounded w-8" />
                 </div>
               ))
-            : ranking.map(entry => {
-                const isMe = entry.student_id === (me?.studentId ?? user?.id)
+            : topFive.map(entry => {
+                const isMe = entry.student_id === studentId
                 return (
                   <div
                     key={entry.student_id}
@@ -205,7 +179,6 @@ export default function StudentHome() {
           </div>
         </button>
       )}
-
     </div>
   )
 }

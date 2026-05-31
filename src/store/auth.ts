@@ -24,11 +24,9 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       login: (token, user) => {
-        localStorage.setItem('gl_token', token)
         set({ token, user })
       },
       logout: () => {
-        localStorage.removeItem('gl_token')
         set({ token: null, user: null })
       },
     }),

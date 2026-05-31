@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { MobileNav } from './MobileNav'
 import { useAuthStore } from '@/store/auth'
+import { getRouteTitle } from '@/lib/routeTitles'
 
 interface PageShellProps {
   title: string
@@ -16,6 +17,7 @@ export function PageShell({ title, showBack = false, children }: PageShellProps)
   const location = useLocation()
   const isStudent = user?.role === 'student'
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const displayTitle = getRouteTitle(location.pathname, user?.role) || title
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -31,7 +33,7 @@ export function PageShell({ title, showBack = false, children }: PageShellProps)
   if (isStudent) {
     return (
       <div className="flex flex-col min-h-svh bg-bg-900">
-        <Topbar title={title} showBack={showBack} />
+        <Topbar title={displayTitle} showBack={showBack} />
         <main className="flex-1 overflow-y-auto pb-20 px-4 py-4">
           {children ?? <Outlet />}
         </main>
@@ -45,7 +47,7 @@ export function PageShell({ title, showBack = false, children }: PageShellProps)
       <Sidebar mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
       <div className="flex flex-col flex-1 min-w-0">
         <Topbar
-          title={title}
+          title={displayTitle}
           showBack={showBack}
           showMenu
           onMenuClick={() => setSidebarOpen(true)}

@@ -110,7 +110,7 @@ export function InstructorStudentCalendar({ backPath, backLabel }: InstructorStu
     else goToMonth(year, month + 1)
   }
 
-  function handleDayClick(dateKey: string, _date: Date) {
+  function handleDayClick(dateKey: string) {
     const entry = entriesByDate[dateKey]
 
     if (selectedDays.size > 0 || !entry) {

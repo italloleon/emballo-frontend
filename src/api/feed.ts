@@ -1,8 +1,18 @@
 import api from './client'
+import {
+  normalizeFeedEntry,
+  parseLikeToggleResponse,
+  parseLikersResponse,
+  type FeedLiker,
+  type FeedReactionsFields,
+  type LikeToggleResult,
+} from '@/lib/feedSocial'
+
+export type { FeedLiker, FeedReactionsFields, LikeToggleResult }
 
 export type EventType = 'check_in' | 'streak_milestone' | 'prize_won' | 'member_joined'
 
-export interface EventEntry {
+export interface EventEntry extends FeedReactionsFields {
   id: string
   kind: 'event'
   type: EventType
@@ -12,7 +22,7 @@ export interface EventEntry {
   liked_by_me: boolean
 }
 
-export interface PostEntry {
+export interface PostEntry extends FeedReactionsFields {
   id: string
   kind: 'post'
   type: 'post'
@@ -36,8 +46,10 @@ export interface FeedResponse {
 export const getFeed = (cursor?: string, perPage = 20) =>
   api.get<FeedResponse>('/feed', { params: { cursor, per_page: perPage } })
 
-export const createPost = (data: { body: string; pinned?: boolean }) =>
-  api.post<PostEntry>('/feed/posts', data)
+export const createPost = async (data: { body: string; pinned?: boolean }): Promise<PostEntry> => {
+  const res = await api.post<PostEntry>('/feed/posts', data)
+  return normalizeFeedEntry(res.data)
+}
 
 export const deletePost = (id: string) =>
   api.delete(`/feed/posts/${id}`)
@@ -45,8 +57,13 @@ export const deletePost = (id: string) =>
 export const pinPost = (id: string) =>
   api.put(`/feed/posts/${id}/pin`)
 
-export const toggleLike = (id: string) =>
-  api.post<{ liked: boolean; likes_count: number }>(`/feed/${id}/like`)
+export const toggleLike = async (id: string): Promise<LikeToggleResult> => {
+  const res = await api.post(`/feed/${id}/like`)
+  return parseLikeToggleResponse(res.data)
+}
 
-export const getLikers = (id: string) =>
-  api.get<{ data: { user_id: string; name: string }[]; meta: { total: number } }>(`/feed/${id}/likes`)
+export const getLikers = async (id: string): Promise<{ data: FeedLiker[]; total: number }> => {
+  const res = await api.get(`/feed/${id}/likes`)
+  const data = parseLikersResponse(res.data)
+  return { data, total: data.length }
+}

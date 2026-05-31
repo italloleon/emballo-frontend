@@ -50,7 +50,7 @@ export function Topbar({ title, showBack = false, showMenu = false, onMenuClick,
             <ArrowLeft size={18} />
           </button>
         )}
-        <h1 className="text-base font-semibold text-txt truncate">{title}</h1>
+        <p className="text-base font-semibold text-txt truncate">{title}</p>
       </div>
 
       {user && (

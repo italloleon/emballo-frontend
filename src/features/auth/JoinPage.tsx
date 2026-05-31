@@ -29,7 +29,7 @@ export default function JoinPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  async function onSubmit(_values: FormValues) {
+  async function onSubmit() {
     // Endpoint not yet built — show coming soon
     await new Promise(r => setTimeout(r, 600))
     toast.info('Funcionalidade em breve! O convite ainda não está ativo.')

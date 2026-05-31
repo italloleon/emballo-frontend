@@ -23,8 +23,8 @@ export function PostComposer({ onPost }: PostComposerProps) {
     setLoading(true)
     setError(null)
     try {
-      const res = await createPost({ body: trimmed })
-      onPost(res.data)
+      const post = await createPost({ body: trimmed })
+      onPost(post)
       setBody('')
     } catch {
       setError('Não foi possível publicar. Tente novamente.')

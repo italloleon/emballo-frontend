@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { PullToRefresh } from '@/components/PullToRefresh'
-import { getFeed, type FeedEntry, type PostEntry } from '@/api/feed'
+import { type FeedEntry, type PostEntry } from '@/api/feed'
 import { FeedItemCard } from './FeedItemCard'
 import { PostComposer } from './PostComposer'
+import { useFeedQuery } from '@/hooks/queries/useFeedQuery'
+import { queryKeys } from '@/hooks/queries/keys'
+import { parseLikedByMe, parseLikesCount } from '@/lib/feedSocial'
 
 function SkeletonCard() {
   return (
@@ -24,121 +28,145 @@ function SkeletonCard() {
 }
 
 export default function FeedPage() {
-  const [items, setItems] = useState<FeedEntry[]>([])
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(true)
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const loadingMoreRef = useRef(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
 
-  const loadInitialFeed = useCallback(async () => {
-    const res = await getFeed()
-    const { data, next_cursor, has_more } = res.data
-    setItems(Array.isArray(data) ? data : [])
-    setCursor(next_cursor)
-    setHasMore(has_more)
-    setError(null)
-  }, [])
+  const {
+    data,
+    isLoading,
+    isError,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useFeedQuery()
 
-  const handleRefresh = useCallback(async () => {
-    await loadInitialFeed()
-  }, [loadInitialFeed])
+  const items = useMemo(
+    () => data?.pages.flatMap(page => page.items) ?? [],
+    [data]
+  )
 
-  // Initial load
-  useEffect(() => {
-    let cancelled = false
-    async function init() {
-      try {
-        await loadInitialFeed()
-      } catch {
-        if (!cancelled) setError('Não foi possível carregar o feed.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    init()
-    return () => { cancelled = true }
-  }, [loadInitialFeed])
-
-  // Infinite scroll via IntersectionObserver — only active after initial load
   useEffect(() => {
     const sentinel = sentinelRef.current
-    if (!sentinel || loading) return
-
-    async function doLoadMore() {
-      if (loadingMoreRef.current || !hasMore) return
-      loadingMoreRef.current = true
-      setLoadingMore(true)
-      try {
-        const res = await getFeed(cursor ?? undefined)
-        const { data, next_cursor, has_more } = res.data
-        setItems(prev => [...prev, ...(Array.isArray(data) ? data : [])])
-        setCursor(next_cursor)
-        setHasMore(has_more)
-      } finally {
-        loadingMoreRef.current = false
-        setLoadingMore(false)
-      }
-    }
+    if (!sentinel || isLoading) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) doLoadMore()
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage().catch(() => {
+            setLoadMoreError('Não foi possível carregar mais publicações.')
+          })
+        }
       },
       { rootMargin: '200px' }
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [cursor, hasMore, loading])
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isLoading])
+
+  const handleRefresh = useCallback(async () => {
+    setLoadMoreError(null)
+    await queryClient.invalidateQueries({ queryKey: queryKeys.feed })
+    await refetch()
+  }, [queryClient, refetch])
 
   function handleNewPost(post: PostEntry) {
-    setItems(prev => [post, ...prev])
+    queryClient.setQueryData(queryKeys.feed, (old: typeof data) => {
+      if (!old) {
+        return {
+          pages: [{ items: [post], nextCursor: null, hasMore: false }],
+          pageParams: [undefined],
+        }
+      }
+      return {
+        ...old,
+        pages: old.pages.map((page, index) =>
+          index === 0 ? { ...page, items: [post, ...page.items] } : page
+        ),
+      }
+    })
   }
 
   function handleDelete(id: string) {
-    setItems(prev => prev.filter(item => item.id !== id))
+    queryClient.setQueryData(queryKeys.feed, (old: typeof data) => {
+      if (!old) return old
+      return {
+        ...old,
+        pages: old.pages.map(page => ({
+          ...page,
+          items: page.items.filter(item => item.id !== id),
+        })),
+      }
+    })
   }
 
   function handlePin(id: string, newPinned: boolean) {
-    setItems(prev =>
-      prev.map(item =>
-        item.id === id && item.kind === 'post' ? { ...item, pinned: newPinned } : item
-      )
-    )
+    queryClient.setQueryData(queryKeys.feed, (old: typeof data) => {
+      if (!old) return old
+      return {
+        ...old,
+        pages: old.pages.map(page => ({
+          ...page,
+          items: page.items.map(item =>
+            item.id === id && item.kind === 'post' ? { ...item, pinned: newPinned } : item
+          ),
+        })),
+      }
+    })
   }
 
   function handleLikeToggle(id: string, likes_count: number, liked_by_me: boolean) {
-    setItems(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, likes_count, liked_by_me } : item
-      )
-    )
+    const heartCount = parseLikesCount(likes_count)
+    const liked = parseLikedByMe(liked_by_me)
+
+    queryClient.setQueryData(queryKeys.feed, (old: typeof data) => {
+      if (!old) return old
+      return {
+        ...old,
+        pages: old.pages.map(page => ({
+          ...page,
+          items: page.items.map(item =>
+            item.id === id
+              ? {
+                  ...item,
+                  likes_count: heartCount,
+                  liked_by_me: liked,
+                  my_reaction: liked ? 'heart' : null,
+                  reactions_summary: {
+                    ...(item.reactions_summary ?? { heart: 0, halter: 0, fire: 0 }),
+                    heart: heartCount,
+                  },
+                }
+              : item
+          ),
+        })),
+      }
+    })
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={loading}>
+    <PullToRefresh onRefresh={handleRefresh} disabled={isLoading}>
       <div className="space-y-4 w-full max-w-sm md:max-w-2xl mx-auto pb-4">
         <div className="flex items-center gap-2">
-        <Activity size={20} className="text-ember" />
-        <h1
-          className="text-2xl font-black uppercase text-txt"
-          style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-        >
-          Feed da Academia
-        </h1>
+          <Activity size={20} className="text-ember" />
+          <h1
+            className="text-2xl font-black uppercase text-txt"
+            style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+          >
+            Feed da Academia
+          </h1>
         </div>
 
         <PostComposer onPost={handleNewPost} />
 
-        {error && (
+        {isError && (
           <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-sm text-danger">
-            {error}
+            Não foi possível carregar o feed.
           </div>
         )}
 
-        {loading ? (
+        {isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
               <SkeletonCard key={i} />
@@ -154,7 +182,7 @@ export default function FeedPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {items.map(item => (
+            {items.map((item: FeedEntry) => (
               <FeedItemCard
                 key={item.id}
                 entry={item}
@@ -168,13 +196,29 @@ export default function FeedPage() {
 
         <div ref={sentinelRef} className="h-1" />
 
-        {loadingMore && (
+        {loadMoreError && (
+          <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center text-sm text-danger">
+            {loadMoreError}
+            <button
+              type="button"
+              className="ml-2 text-ember underline"
+              onClick={() => {
+                setLoadMoreError(null)
+                void fetchNextPage()
+              }}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
+        {isFetchingNextPage && (
           <div className="flex justify-center py-4">
             <div className="w-5 h-5 border-2 border-ember border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {!loading && !hasMore && items.length > 0 && (
+        {!isLoading && !hasNextPage && items.length > 0 && (
           <p className="text-center text-xs text-txt-faint py-4">Chegou ao fim do feed</p>
         )}
       </div>

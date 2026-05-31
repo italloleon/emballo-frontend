@@ -1,15 +1,7 @@
-import { useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
-import { useAuthStore } from '@/store/auth'
-import { getActiveRanking } from '@/api/leagues'
-
-interface RankEntry {
-  rank: number
-  student_id: string
-  name: string
-  total_points: number
-}
+import { useActiveRanking } from '@/hooks/queries/useActiveRanking'
+import { useMeDashboard } from '@/hooks/queries/useMeDashboard'
 
 function positionStyle(pos: number) {
   if (pos === 1) return 'bg-gold/20 text-gold border border-gold/30'
@@ -19,34 +11,23 @@ function positionStyle(pos: number) {
 }
 
 export default function StudentLeague() {
-  const { user } = useAuthStore()
-  const [ranking, setRanking] = useState<RankEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    data: ranking = [],
+    isLoading: loading,
+    isError,
+  } = useActiveRanking()
+  const { data: me } = useMeDashboard()
 
-  useEffect(() => {
-    async function fetchRanking() {
-      try {
-        const { data } = await getActiveRanking()
-        const list = Array.isArray(data) ? data : (data?.data ?? [])
-        setRanking(list)
-      } catch {
-        setError('Não foi possível carregar os dados.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchRanking()
-  }, [])
-
+  const studentId = me?.studentId ?? ''
   const maxPoints = ranking[0]?.total_points ?? 1
-  const myEntry = ranking.find(e => e.student_id === user?.id)
+  const myEntry = ranking.find(e => e.student_id === studentId)
+  const leagueTitle = me?.leagueName ?? 'Liga'
 
   return (
     <div className="space-y-4 max-w-sm mx-auto">
-      {error && (
+      {isError && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-sm text-danger">
-          {error}
+          Não foi possível carregar os dados.
         </div>
       )}
       {/* Header */}
@@ -59,7 +40,7 @@ export default function StudentLeague() {
             className="text-2xl font-black uppercase text-txt"
             style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
           >
-            Liga Maio
+            {leagueTitle}
           </h1>
           <p className="text-xs text-txt-faint">Ranking ao vivo</p>
         </div>
@@ -102,7 +83,7 @@ export default function StudentLeague() {
                 </div>
               ))
             : ranking.map(entry => {
-                const isMe = entry.student_id === user?.id
+                const isMe = entry.student_id === studentId
                 const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : null
                 return (
                   <div

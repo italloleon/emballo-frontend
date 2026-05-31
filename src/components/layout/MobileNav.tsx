@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Trophy, QrCode, User, Calendar } from 'lucide-react'
+import { Home, Trophy, QrCode, User, Calendar, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/student/home', label: 'Home', icon: Home },
+  { to: '/student/feed', label: 'Feed', icon: Activity },
   { to: '/student/calendar', label: 'Treino', icon: Calendar },
   { to: '/student/checkin', label: 'Check-in', icon: QrCode },
   { to: '/student/league', label: 'Liga', icon: Trophy },

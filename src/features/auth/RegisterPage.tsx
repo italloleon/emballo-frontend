@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate, Link } from 'react-router-dom'
+import { Navigate, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { register as registerApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
+import { env } from '@/lib/env'
 
 const step1Schema = z.object({
   academy_name: z.string().min(2, 'Nome muito curto'),
@@ -66,6 +67,10 @@ export default function RegisterPage() {
 
   const form1 = useForm<Step1Values>({ resolver: zodResolver(step1Schema) })
   const form2 = useForm<Step2Values>({ resolver: zodResolver(step2Schema) })
+
+  if (!env.allowRegistration) {
+    return <Navigate to="/login" replace />
+  }
 
   function onStep1(values: Step1Values) {
     setStep1Data(values)

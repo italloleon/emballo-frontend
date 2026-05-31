@@ -4,10 +4,16 @@ import { RouterProvider } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import './index.css'
 import { router } from './router'
+import { AppQueryProvider } from '@/providers/AppQueryProvider'
+import { AuthBootstrap } from '@/components/AuthBootstrap'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AppQueryProvider>
+      <AuthBootstrap>
+        <RouterProvider router={router} />
+      </AuthBootstrap>
+    </AppQueryProvider>
     <Toaster
       theme="dark"
       position="top-right"

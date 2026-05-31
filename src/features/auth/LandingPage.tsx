@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Trophy, Flame, Gift } from 'lucide-react'
+import { env } from '@/lib/env'
 
 export default function LandingPage() {
   const navigate = useNavigate()
@@ -51,9 +52,11 @@ export default function LandingPage() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button size="lg" onClick={() => navigate('/register')}>
-            Registrar Academia
-          </Button>
+          {env.allowRegistration && (
+            <Button size="lg" onClick={() => navigate('/register')}>
+              Registrar Academia
+            </Button>
+          )}
           <Button variant="ghost" size="lg" onClick={() => navigate('/login')}>
             Entrar
           </Button>

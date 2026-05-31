@@ -1,7 +1,7 @@
 import { Check, Moon } from 'lucide-react'
 import type { ScheduleEntry } from '@/api/schedule'
 import { cn } from '@/lib/utils'
-import { goalColor, goalDot, goalLabel, isToday, toDateKey } from '@/lib/calendar'
+import { goalColor, goalDot, isToday } from '@/lib/calendar'
 import { isCompleted } from '@/api/schedule'
 
 interface DayCellProps {
@@ -123,5 +123,3 @@ export function GoalLegend({ className }: GoalLegendProps) {
     </div>
   )
 }
-
-export { toDateKey, goalLabel }

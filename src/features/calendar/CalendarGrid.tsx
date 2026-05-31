@@ -1,7 +1,8 @@
 import { useRef } from 'react'
 import type { ScheduleEntry } from '@/api/schedule'
 import { buildCalendarGrid } from '@/lib/calendar'
-import { DayCell, toDateKey } from './DayCell'
+import { DayCell } from './DayCell'
+import { toDateKey } from '@/lib/calendar'
 import { MonthNav, WeekdayHeader } from './MonthNav'
 
 interface CalendarGridProps {
